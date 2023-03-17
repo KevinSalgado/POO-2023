@@ -8,11 +8,11 @@ public class MyMarvelCollection implements Iterable<Film> {
 
     }
 
-    public void addFilm (Film film) {
+    public void add (Film film) {
 
     }
 
-    public Film getFilm (int index) {
+    public Film get (int index) {
 
     }
 
