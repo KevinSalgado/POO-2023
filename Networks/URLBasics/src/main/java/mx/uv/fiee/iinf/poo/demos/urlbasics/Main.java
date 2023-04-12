@@ -1,18 +1,22 @@
 package mx.uv.fiee.iinf.poo.demos.urlbasics;
 
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.TextArea;
-import java.io.*;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.swing.*;
+import java.awt.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
-import java.util.Arrays;
-import javax.net.ssl.HttpsURLConnection;
-import javax.swing.JFrame;
-import javax.swing.JScrollPane;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 /**
  * Clase demostrativa de algunas características de la clase URL y URLconnection.
@@ -31,7 +35,7 @@ public class Main extends JFrame {
         setDefaultCloseOperation (JFrame.EXIT_ON_CLOSE); // operación predeterminada al cierre de la ventana
 
         myText = new TextArea (); // creamos al componente de área de texto
-        myText.setFont (new Font ("Verdana", NORMAL, 12));
+        myText.setFont (new Font ("Verdana", Font.PLAIN, 12));
 
         // debido a que la cantidad de texto rebasa el tamaña del área de texto
         // se utiliza un panel contenedor que incluye barras de desplazamiento
@@ -54,8 +58,8 @@ public class Main extends JFrame {
      * @throws MalformedURLException producida cuanda el objeto URL no puede ser creado
      * @throws IOException algún error relacionado con la entrada/salida de los flujos de red
      */
-    public static void main (String [] args) throws MalformedURLException, IOException, InterruptedException {
-        Main m = new Main (); // creamos al objeto que representa la ventana
+    public static void main (String [] args) throws MalformedURLException, IOException, NullPointerException {
+        new Main (); // creamos al objeto que representa la ventana
 
         // ******************************************************************************************
         // en el siguiente fragmento de código se muestra la forma de crear un objeto URL a partir
@@ -96,7 +100,7 @@ public class Main extends JFrame {
 
             // para leerlos se requiere de una clase lectora, un objeto InputStremReader
             // este lee los bytes y los convierte a su representación de caracter
-            InputStreamReader inputStreamReader = new InputStreamReader (in, "utf-8");
+            InputStreamReader inputStreamReader = new InputStreamReader (in, StandardCharsets.UTF_8);
             // la clase InputStreamReader leee los bytes y los convierte a su representación unicode
             // pero lo realiza de forma secuencial, esto es, caracter a caracter, para agilizar este proceso
             // se utiliza una clase BufferedReader, que está optimizada para lectura de caracteres en bloques,
@@ -137,10 +141,27 @@ public class Main extends JFrame {
 //        }
 
         client.sendAsync (request, HttpResponse.BodyHandlers.ofString ())
-                .thenApply (res -> res.body ())
+                .thenApply (HttpResponse::body)
                 .thenAccept (s -> {
-                   myText.setText (s);
+                   //myText.setText (s);
                 });
+
+
+        OkHttpClient client1 = new OkHttpClient ();
+        Request request1 = new Request.Builder ()
+                .url (new URL(url_base))
+                .build ();
+
+        try (Response response = client1.newCall (request1).execute ()) {
+            System.out.println ("Response code:" + response.code ());
+
+            String template = "Response Content-type: %s";
+            String header = response.headers().get ("Content-type");
+            String message = String.format (Locale.getDefault (), template, header);
+            System.out.println (message);
+
+            myText.setText (response.body().string ());
+        }
 
     }
     
