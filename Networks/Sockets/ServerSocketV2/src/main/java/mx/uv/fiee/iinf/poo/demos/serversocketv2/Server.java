@@ -1,13 +1,11 @@
 package mx.uv.fiee.iinf.poo.demos.serversocketv2;
 
-import java.io.BufferedReader;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 /**
  * En esta versión del servidor se permite una conexión uno a uno
@@ -29,60 +27,83 @@ public class Server {
     
     public static void main(String[] args) {
         try {
-            // creamos al socket tipo servidor usando el puerto definido
             ServerSocket server = new ServerSocket (PORT);
-            // esperamos a que se realice una conexión, bloqueando el flujo de la aplicación
             Socket socket = server.accept ();
 
-            // creamos los objetos DataInputStream y DataOutputStream, usando el flujo de entrada
-            // y salida del socket
             DataInputStream din = new DataInputStream (socket.getInputStream ());
             DataOutputStream dos = new DataOutputStream (socket.getOutputStream ());
-
-            // la entrada del usuario se referencía de la entrada por consola
-            // Utilizamos un objeto InputStreamReader para leer los bytes
-            // entrantes y los convierta a su representación unicode
             InputStreamReader in = new InputStreamReader (System.in, StandardCharsets.UTF_8);
-
-            // La clase Reader lee byte a byte e interpreta cada byte de acuerdo a la codificación establecidad,
-            // pero lo que necesitamos es leer bloques (líneas) completas y se almacen en memoria
-            // para ser enviadas, para ellos utilizamos un BufferedReader
             BufferedReader buff = new BufferedReader (in);
-
-            // variables de control
-            // line1, lee el mensaje remoto entrante
-            // line2, almacena la entrada del usuario
             String line1 = "", line2 = "";
 
-            /**
-             * Para realizar lectura y envíos recurrentes, utilizamos un ciclo.
-             *
-             * La aplicación se detiene cuando el usuario teclea "stop"
-             */
             while (!line1.equals ("stop")) {
-                // lee los bytes entrantes de la conexión como caracteres unicode,
-                // el flujo de la aplicación se detiene esperando la llegada de datos
+                System.out.println ("Listening");
                 line1 = din.readUTF ();
+
+                boolean isFile = line1.contains ("file:");
+                if (isFile) {
+                    var filename = line1.split (":")[1];
+                    System.out.println ("Receiving file: " + filename);
+
+                    FileOutputStream fos = new FileOutputStream (Paths.get (filename).toFile ());
+
+                    // creando el buffer a ser almacenado
+                    int length = din.readInt ();
+                    byte [] buffer = new byte [length];
+                    din.readFully (buffer, 0, buffer.length);
+
+                    // guardando los bytes
+                    fos.write (buffer);
+                    fos.flush ();
+                    fos.close ();
+
+                    System.out.println ("File saved!");
+                    continue;
+                }
+
                 System.out.println ("Client says " + line1);
                 
                 System.out.print ("Response: ");
                 // lee la entrada del usuario, el flujo de la aplicación se detiene
                 line2 = buff.readLine ();
 
-                // la entrada del usuario es codificada a caracteres unicode,
-                // y coloca en el buffer de salida de la conexión
+                isFile = line2.contains ("file:");
+                if (isFile) {
+                    var filepath = Paths.get (line2.split (":")[1]);
+                    if (!Files.exists (filepath) || Files.isDirectory (filepath)) {
+                        System.out.println ("Invalid file!");
+                        continue;
+                    }
+
+                    // filename to be used
+                    dos.writeUTF ("file:" + filepath.getFileName ());
+                    dos.flush ();
+
+                    // lee el archivo y crea el buffer
+                    FileInputStream fis = new FileInputStream (filepath.toFile ());
+                    byte [] buffer = fis.readAllBytes ();
+
+                    // envia el tamaño del buffer
+                    dos.writeInt (buffer.length);
+                    dos.flush ();
+                    //envía los datos
+                    dos.write (buffer, 0, buffer.length);
+                    dos.flush ();
+
+                    fis.close ();
+                    System.out.println ("File sent!");
+                    continue;
+                }
+
                 dos.writeUTF (line2);
-                dos.flush (); // envía los bytes pendientes de salida
+                dos.flush ();
             }
 
-            // cerramos los flujos de entrada y salida
             din.close ();
             dos.close ();
-            server.close (); // y finalmente la conexión
+            server.close ();
         } catch (IOException ex) {
             ex.printStackTrace ();
         }
-        
     }
-    
 }
