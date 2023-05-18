@@ -1,12 +1,11 @@
 package mx.uv.fiee.iinf.poo.demos.clientsocketv2;
 
-import java.io.BufferedReader;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * En esta versión del cliente se permite una conexión uno a uno
@@ -29,58 +28,84 @@ public class Client {
     
     public static void main(String [] args) {
         try {
-            // creamos el socket cliente, utilizando la dirección remota y el mismo puerto de escucha del servidor
             Socket socket = new Socket (ADDRESS, PORT);
 
-            // creamos los objetos DataInputStream y DataOutputStream, usando el flujo de entrada
-            // y salida del socket
             DataInputStream din = new DataInputStream (socket.getInputStream ());
             DataOutputStream dos = new DataOutputStream (socket.getOutputStream ());
 
-            // la entrada del usuario se referencía de la entrada por consola utilizamos un objeto InputStreamReader
-            // para leer los bytes entrantes y los convierta a su representación unicode
             InputStreamReader in = new InputStreamReader (System.in, StandardCharsets.UTF_8);
-
-            // La clase Reader lee byte a byte e interpreta cada byte de acuerdo a la codificación establecidad,
-            // pero lo que necesitamos es leer bloques (líneas) completas y se almacen en memoria
-            // para ser enviadas, para ellos utilizamos un BufferedReader
             BufferedReader buff = new BufferedReader (in);
 
-            // Variables de control
-            // line1, almacena la entrada del usuario
-            // line2, lee el mensaje remoto entrante
             String line1 = "", line2 = "";
 
-            /**
-             * Para realizar lectura y envíos recurrentes, utilizamos un ciclo.
-             *
-             * La aplicación se detiene cuando el usuario teclea "stop"
-             */
             while (!line1.equals ("stop")) {
                 System.out.print ("Message: ");
-
-                // lee la entrada del usuario mediante la consola del sistema
                 line1 = buff.readLine ();
 
-                // escribe la entradad del usuario en el buffer del flujo de salida
-                dos.writeUTF (line1);
-                dos.flush (); // envía los bytes pendientes alojados en el flujo de salida
+                boolean isFile = line1.contains ("file:");
+                if (isFile) {
+                    var filepath = Paths.get (line1.split (":")[1]);
+                    if (!Files.exists (filepath) || Files.isDirectory (filepath)) {
+                        System.out.println ("Invalid file!");
+                        continue;
+                    }
 
-                // espera la respuesta del equipo remoto
-                // el flujo de la aplicación se bloquea en este punto, hasta que llega algún dato
+                    // filename to be used
+                    dos.writeUTF ("file:" + filepath.getFileName ());
+                    dos.flush ();
+
+                    // lee el archivo y crea el buffer
+                    FileInputStream fis = new FileInputStream (filepath.toFile ());
+                    byte [] buffer = fis.readAllBytes ();
+
+                    // envia el tamaño del buffer
+                    dos.writeInt (buffer.length);
+                    dos.flush ();
+                    //envía los datos
+                    dos.write (buffer, 0, buffer.length);
+                    dos.flush ();
+
+                    fis.close ();
+                    System.out.println ("File sent!");
+                    continue;
+                }
+
+                System.out.println ("sending...");
+                dos.writeUTF (line1);
+                dos.flush ();
+
                 line2 = din.readUTF ();
-                System.out.println ("Server says: " + line2); // coloca el mensaje entrante en la consola
-                
+
+                isFile = line2.contains ("file:");
+                if (isFile) {
+                    var filename = line2.split (":")[1];
+                    System.out.println ("Receiving file: " + filename);
+
+                    FileOutputStream fos = new FileOutputStream (Paths.get (filename).toFile ());
+
+                    // creando el buffer a ser almacenado
+                    int length = din.readInt ();
+                    byte [] buffer = new byte [length];
+                    din.readFully (buffer, 0, buffer.length);
+
+                    // guardando los bytes
+                    fos.write (buffer);
+                    fos.flush ();
+                    fos.close ();
+
+                    System.out.println ("File saved!");
+                    continue;
+                }
+
+                System.out.println ("Server says: " + line2);
             }
 
-            // cerramos los flujos de entrada y salida
             din.close ();
             dos.close ();
-            socket.close (); // y terminamos la conexión
+            socket.close ();
             
         } catch (IOException ex) {
             ex.printStackTrace ();
         }
-        
     }   
 }
